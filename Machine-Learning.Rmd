@@ -1,0 +1,85 @@
+---
+title: "Machine Learning Project"
+author: "ME"
+date: "4/25/2020"
+output: html_document
+---
+
+```{r echo=TRUE}
+library(caret)
+library(corrplot)
+set.seed(123)
+
+```
+
+## Getting Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+```{r echo=TRUE}
+Training<-read.csv("pml-training.csv", stringsAsFactors = FALSE)
+Testing<-read.csv("pml-testing.csv", stringsAsFactors = FALSE)
+```
+
+## Looking at the data
+
+There's a lot of useless columns.
+
+```{r, echo=TRUE}
+dim(Training)
+
+```
+
+##Clean the data
+Getting rid of factors that are near zero variance and have more than 50% null values.
+Then getting rid of first two columns that's just row number and subject names.
+I am also changing the format of the timestamp. 
+```{r, echo=TRUE}
+remove_col<-nearZeroVar(Training,names=TRUE)
+all_col<-names(Training)
+TrainingClean<-Training[setdiff(all_col,remove_col)]
+
+##Removing factors with more than 50% null value
+TrainingClean<- TrainingClean[,!sapply(TrainingClean, function(x) mean(is.na(x)))>0.5]
+
+##Changing format 
+TrainingClean$classe<-as.factor(TrainingClean$classe)
+
+##getting rid of timestamps, row number, subject names(not helpful for prediction)
+TrainingClean<- subset(TrainingClean,select = -c(1:5))
+str(TrainingClean)
+
+##checking to see whether there are NAs
+names(which(sapply(TrainingClean,anyNA)))
+
+
+
+
+```
+##Correlations 
+There are lots of variables that are correlated with each other so I will use PCA to reduce the number of factors without compromising the accuracy significantly.
+
+```{r,echo=TRUE}
+M<-abs(cor(TrainingClean[,-54]))
+diag(M)<-0
+which(M>0.8,arr.ind=T)
+
+```
+
+##Using random forest with PCA
+Wih an accuracy of 98% and OOB estimate of error rate at 1.74%
+```{r, echo=TRUE}
+
+fit<-train(classe ~., method ="rf",preProcess=c("center","scale","pca"),data=TrainingClean, trControl = trainControl(method = "cv"), ntree=150)
+print(fit$finalModel)
+confusionMatrix(fit)
+plot(fit)
+testPC<-predict(fit,Testing)
+
+```
